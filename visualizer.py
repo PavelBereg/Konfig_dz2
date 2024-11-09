@@ -31,15 +31,22 @@ def get_commits(repo_path, date):
 
 def get_commit_info(repo_path, commit_hash):
     """Получение информации о коммите: сообщение и измененные файлы."""
+    # Получение сообщения коммита
     message_cmd = f'git -C "{repo_path}" log -1 --pretty=format:%s {commit_hash}'
-    message_result = subprocess.run(message_cmd, stdout=subprocess.PIPE, text=True, shell=True)
+    message_result = subprocess.run(message_cmd, stdout=subprocess.PIPE, text=True, encoding='utf-8', shell=True)
     message = message_result.stdout.strip()
 
+    # Получение списка измененных файлов
     files_cmd = f'git -C "{repo_path}" diff-tree --no-commit-id --name-only -r {commit_hash}'
-    files_result = subprocess.run(files_cmd, stdout=subprocess.PIPE, text=True, shell=True)
-    files = files_result.stdout.strip().split('\n')
+    files_result = subprocess.run(files_cmd, stdout=subprocess.PIPE, text=True, encoding='utf-8', shell=True)
+    files = files_result.stdout.strip().split('\n') if files_result.stdout.strip() else []
+
+    print(f"Коммит {commit_hash}: файлы - {files}")  # Отладочный вывод для проверки
 
     return message, files
+
+
+
 
 def get_commit_parents(repo_path, commit_hash):
     """Получение списка родительских коммитов."""
@@ -61,17 +68,30 @@ def build_dependency_graph(repo_path, commits):
         graph[commit] = {'parents': parents, 'message': message, 'files': files}
     return graph
 
+
 def generate_mermaid_code(graph):
     """Генерация кода Mermaid для графа зависимостей с подробной информацией."""
     lines = ["graph TD"]
     for commit, data in graph.items():
-        commit_label = f'{commit[:7]}: {data["message"]}'
-        for file in data['files']:
-            file_label = f'{commit[:7]}_file_{file}'
-            lines.append(f'    {commit[:7]}["Commit: {commit[:7]}<br>Message: {data["message"]}<br>File: {file}"]')
+        # Формируем информацию для коммита
+        commit_label = f'Commit: {commit[:7]}<br>Message: {data["message"] if data["message"] else "No message"}'
+
+        # Обработка файлов
+        if data['files']:
+            files_str = ', '.join(data['files'])
+            commit_label += f'<br>Files: {files_str}'
+        else:
+            commit_label += '<br>Files:'
+
+        lines.append(f'    {commit[:7]}["{commit_label}"]')
+
+        # Добавляем зависимости
         for parent in data['parents']:
             lines.append(f'    {parent[:7]} --> {commit[:7]}')
+
     return '\n'.join(lines)
+
+
 
 def output_result(mermaid_code, output_path):
     """Сохранение кода Mermaid в формате Markdown в файл."""
